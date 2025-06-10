@@ -7,13 +7,14 @@ RUN corepack enable
 WORKDIR /app
 
 # Copy package files
-COPY package.json yarn.lock tsconfig.json ./
+COPY package.json yarn.lock tsconfig.json tsconfig.build.json ./
 
 # Install dependencies
 RUN yarn install --frozen-lockfile
 
-# Copy source code
+# Copy source code and public assets
 COPY src ./src
+COPY public ./public
 
 # Build the application
 RUN yarn build
@@ -32,8 +33,10 @@ COPY package.json yarn.lock ./
 # Install production dependencies only
 RUN yarn install --frozen-lockfile --production
 
-# Copy built application
+# Copy built application and public assets
 COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/public ./public
+COPY ./openapi.yaml ./openapi.yaml
 
 EXPOSE 3000
 
