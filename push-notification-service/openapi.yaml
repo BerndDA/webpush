@@ -1,0 +1,534 @@
+openapi: 3.0.3
+info:
+  title: Push Notification Service API
+  description: A RESTful API service for managing web push notifications across multiple devices per user
+  version: 1.0.0
+  contact:
+    name: API Support
+    email: support@example.com
+
+servers:
+  - url: http://localhost:3000
+    description: Development server
+  - url: https://api.example.com
+    description: Production server
+
+tags:
+  - name: Health
+    description: Health check endpoints
+  - name: Subscriptions
+    description: Manage user device subscriptions
+  - name: Notifications
+    description: Send push notifications (internal use only)
+
+paths:
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Health check endpoint
+      description: Returns the current status of the service
+      operationId: getHealth
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  timestamp:
+                    type: string
+                    format: date-time
+                    example: '2025-01-20T12:00:00.000Z'
+
+  /api/v1/users/{userId}/subscriptions:
+    post:
+      tags:
+        - Subscriptions
+      summary: Subscribe a device for push notifications
+      description: Registers a new device subscription for a user or updates an existing one
+      operationId: subscribeDevice
+      parameters:
+        - $ref: '#/components/parameters/UserIdPath'
+        - $ref: '#/components/parameters/UserIdHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - subscription
+              properties:
+                subscription:
+                  $ref: '#/components/schemas/PushSubscription'
+                deviceInfo:
+                  $ref: '#/components/schemas/DeviceInfo'
+      responses:
+        '201':
+          description: Device successfully subscribed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscribeResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+    get:
+      tags:
+        - Subscriptions
+      summary: Get all subscriptions for a user
+      description: Returns a summary of all active device subscriptions for a specific user
+      operationId: getUserSubscriptions
+      parameters:
+        - $ref: '#/components/parameters/UserIdPath'
+        - $ref: '#/components/parameters/UserIdHeader'
+      responses:
+        '200':
+          description: User subscriptions retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserSubscriptionSummaryResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+    delete:
+      tags:
+        - Subscriptions
+      summary: Unsubscribe all devices for a user
+      description: Removes all push notification subscriptions for a specific user
+      operationId: unsubscribeAllDevices
+      parameters:
+        - $ref: '#/components/parameters/UserIdPath'
+        - $ref: '#/components/parameters/UserIdHeader'
+      responses:
+        '200':
+          description: All devices unsubscribed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnsubscribeAllResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/v1/users/{userId}/subscriptions/{endpoint}:
+    delete:
+      tags:
+        - Subscriptions
+      summary: Unsubscribe a specific device
+      description: Removes a specific device subscription for a user
+      operationId: unsubscribeDevice
+      parameters:
+        - $ref: '#/components/parameters/UserIdPath'
+        - $ref: '#/components/parameters/UserIdHeader'
+        - name: endpoint
+          in: path
+          required: true
+          description: The unique endpoint URL of the subscription to remove
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Device unsubscribed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnsubscribeResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /internalapi/v1/users/{userId}/notifications:
+    post:
+      tags:
+        - Notifications
+      summary: Send notification to a specific user
+      description: Sends a push notification to all devices registered for a specific user (internal use only)
+      operationId: sendToUser
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          description: The ID of the user to send notification to
+          schema:
+            $ref: '#/components/schemas/Slug'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - notification
+              properties:
+                notification:
+                  $ref: '#/components/schemas/NotificationPayload'
+      responses:
+        '200':
+          description: Notification sent successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SendToUserResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /internalapi/v1/notifications/broadcast:
+    post:
+      tags:
+        - Notifications
+      summary: Broadcast notification to all users
+      description: Sends a push notification to all registered devices across all users (internal use only)
+      operationId: broadcastToAll
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - notification
+              properties:
+                notification:
+                  $ref: '#/components/schemas/NotificationPayload'
+      responses:
+        '200':
+          description: Broadcast sent successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BroadcastResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+components:
+  parameters:
+    UserIdPath:
+      name: userId
+      in: path
+      required: true
+      description: The ID of the user
+      schema:
+        $ref: '#/components/schemas/Slug'
+        example: user123
+
+    UserIdHeader:
+      name: X-UserId
+      in: header
+      required: true
+      description: User ID for authentication - must match the userId in path
+      schema:
+        $ref: '#/components/schemas/Slug'
+        example: user123
+
+  schemas:
+    Slug:
+      type: string
+      maxLength: 30
+      pattern: '^[a-z0-9_-]{1,30}$'
+      description: Lowercase alphanumeric slug with dashes or underscores (max 30 characters)
+    ApiResponse:
+      type: object
+      required:
+        - success
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+        error:
+          type: string
+
+    PushSubscription:
+      type: object
+      required:
+        - endpoint
+        - keys
+      properties:
+        endpoint:
+          type: string
+          description: The push service endpoint URL
+          example: https://fcm.googleapis.com/fcm/send/abcdef123456
+        keys:
+          type: object
+          required:
+            - p256dh
+            - auth
+          properties:
+            p256dh:
+              type: string
+              description: Public key for message encryption
+              example: BNcRdreALRFXTkOOUHK1EtK2wtaz5Ry4YfYCA_0QTpQtUbVlUls0VJXg7A8u-Ts1XbjhazAkj7I99e8QcYP7DkM=
+            auth:
+              type: string
+              description: Authentication secret
+              example: tBHItJI5svbpez7KI4CCXg==
+        expirationTime:
+          type: number
+          nullable: true
+          description: Unix timestamp when the subscription expires
+
+    DeviceInfo:
+      type: object
+      properties:
+        userAgent:
+          type: string
+          example: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36
+        deviceType:
+          type: string
+          example: desktop
+        browserName:
+          type: string
+          example: Chrome
+
+    NotificationPayload:
+      type: object
+      required:
+        - title
+        - body
+      properties:
+        title:
+          type: string
+          description: Notification title
+          example: New Message
+        body:
+          type: string
+          description: Notification body text
+          example: You have a new message from John
+        icon:
+          type: string
+          description: URL of the notification icon
+          example: /icon-192x192.png
+        badge:
+          type: string
+          description: URL of the badge icon
+          example: /badge-72x72.png
+        image:
+          type: string
+          description: URL of an image to display
+          example: /notification-image.jpg
+        data:
+          type: object
+          description: Custom data payload
+          additionalProperties: true
+          example:
+            messageId: msg123
+            sender: john_doe
+        actions:
+          type: array
+          items:
+            type: object
+            required:
+              - action
+              - title
+            properties:
+              action:
+                type: string
+                example: view
+              title:
+                type: string
+                example: View Message
+              icon:
+                type: string
+                example: /action-icon.png
+
+    SubscribeResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                userId:
+                  $ref: '#/components/schemas/Slug'
+                  example: user123
+                endpoint:
+                  type: string
+                  example: https://fcm.googleapis.com/fcm/send/abcdef123456
+                subscribedAt:
+                  type: string
+                  format: date-time
+                  example: '2025-01-20T12:00:00.000Z'
+
+    UserSubscriptionSummaryResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/UserSubscriptionSummary'
+
+    UserSubscriptionSummary:
+      type: object
+      properties:
+        userId:
+          $ref: '#/components/schemas/Slug'
+          example: user123
+        totalSubscriptions:
+          type: integer
+          example: 3
+        devices:
+          type: array
+          items:
+            type: object
+            properties:
+              endpoint:
+                type: string
+                example: https://fcm.googleapis.com/fcm/send/abcdef123456
+              deviceInfo:
+                $ref: '#/components/schemas/DeviceInfo'
+              subscribedAt:
+                type: string
+                format: date-time
+                example: '2025-01-20T12:00:00.000Z'
+              lastActiveAt:
+                type: string
+                format: date-time
+                example: '2025-01-20T15:30:00.000Z'
+
+    UnsubscribeResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                userId:
+                  $ref: '#/components/schemas/Slug'
+                  example: user123
+                endpoint:
+                  type: string
+                  example: https://fcm.googleapis.com/fcm/send/abcdef123456
+
+    UnsubscribeAllResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                userId:
+                  $ref: '#/components/schemas/Slug'
+                  example: user123
+                devicesUnsubscribed:
+                  type: integer
+                  example: 3
+
+    SendToUserResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                userId:
+                  $ref: '#/components/schemas/Slug'
+                  example: user123
+                devicesNotified:
+                  type: integer
+                  example: 2
+                devicesFailed:
+                  type: integer
+                  example: 1
+
+    BroadcastResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/BroadcastResult'
+
+    BroadcastResult:
+      type: object
+      properties:
+        total:
+          type: integer
+          description: Total number of devices attempted
+          example: 150
+        successful:
+          type: integer
+          description: Number of successful deliveries
+          example: 145
+        failed:
+          type: integer
+          description: Number of failed deliveries
+          example: 5
+        details:
+          type: array
+          items:
+            type: object
+            properties:
+              userId:
+                $ref: '#/components/schemas/Slug'
+                example: user123
+              devicesNotified:
+                type: integer
+                example: 2
+              devicesFailed:
+                type: integer
+                example: 0
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiResponse'
+          example:
+            success: false
+            error: subscription is required
+
+    Unauthorized:
+      description: Missing or invalid authentication
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiResponse'
+          example:
+            success: false
+            error: X-UserId header is required
+
+    Forbidden:
+      description: Access forbidden
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiResponse'
+          example:
+            success: false
+            error: 'Forbidden: X-UserId header does not match requested user'
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiResponse'
+          example:
+            success: false
+            error: Subscription not found
+
+security:
+  - UserIdAuth: []

@@ -1,0 +1,189 @@
+### API Requests for Push Notification Service
+### Use REST Client extension in VS Code to run these requests
+
+@baseUrl = http://localhost:3000
+@apiUrl = {{baseUrl}}/api/v1
+@internalApiUrl = {{baseUrl}}/internalapi/v1
+@userId = user123
+@endpoint = https://fcm.googleapis.com/fcm/send/example-endpoint-12345
+
+### Health Check
+GET {{baseUrl}}/health
+
+### Subscribe a device
+POST {{apiUrl}}/users/{{userId}}/subscriptions
+Content-Type: application/json
+X-UserId: {{userId}}
+
+{
+  "subscription": {
+    "endpoint": "{{endpoint}}",
+    "keys": {
+      "p256dh": "BNcRdreALRFXTkOOUHK1EtK2wtaz5Ry4YfYCA_0QTpQtUbVlUls0VJXg7A8u-Ts1XbjhazAkj7I99e8QcYP7DkM=",
+      "auth": "tBHItJI5svbpez7KI4CCXg=="
+    },
+    "expirationTime": null
+  },
+  "deviceInfo": {
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+    "deviceType": "desktop",
+    "browserName": "Chrome"
+  }
+}
+
+### Subscribe another device for same user (mobile)
+POST {{apiUrl}}/users/{{userId}}/subscriptions
+Content-Type: application/json
+X-UserId: {{userId}}
+
+{
+  "subscription": {
+    "endpoint": "https://updates.push.services.mozilla.com/wpush/v2/example-endpoint-67890",
+    "keys": {
+      "p256dh": "BLc4xRzKlKORKWlbdgFaBrrPK3ydWAHo4M0gs0i1oEKgPpWC5cW8OCzVrOQRv-1npXRWk8udnW3oYhIO4475rds=",
+      "auth": "5I2Bu2oKdyy9CwL8QVF0NQ=="
+    }
+  },
+  "deviceInfo": {
+    "deviceType": "mobile",
+    "browserName": "Firefox"
+  }
+}
+
+### Get user's subscriptions
+GET {{apiUrl}}/users/{{userId}}/subscriptions
+X-UserId: {{userId}}
+
+### Send notification to specific user (all devices) - INTERNAL API
+POST {{internalApiUrl}}/users/{{userId}}/notifications
+Content-Type: application/json
+
+{
+  "notification": {
+    "title": "New Message",
+    "body": "You have received a new message from John",
+    "icon": "/icon-192x192.png",
+    "badge": "/badge-72x72.png",
+    "data": {
+      "url": "/messages/123",
+      "messageId": "123"
+    },
+    "actions": [
+      {
+        "action": "open",
+        "title": "Open"
+      },
+      {
+        "action": "dismiss",
+        "title": "Dismiss"
+      }
+    ]
+  }
+}
+
+### Broadcast notification to all users - INTERNAL API
+POST {{internalApiUrl}}/notifications/broadcast
+Content-Type: application/json
+
+{
+  "notification": {
+    "title": "System Maintenance",
+    "body": "The system will be under maintenance from 2 AM to 4 AM",
+    "icon": "/icon-192x192.png",
+    "data": {
+      "type": "maintenance",
+      "startTime": "2025-01-25T02:00:00Z",
+      "endTime": "2025-01-25T04:00:00Z"
+    }
+  }
+}
+
+### Unsubscribe specific device
+DELETE {{apiUrl}}/users/{{userId}}/subscriptions/{{endpoint}}
+X-UserId: {{userId}}
+
+### Unsubscribe all devices for a user
+DELETE {{apiUrl}}/users/{{userId}}/subscriptions
+X-UserId: {{userId}}
+
+### Test with different user
+@userId2 = user456
+
+### Subscribe device for user2
+POST {{apiUrl}}/users/{{userId2}}/subscriptions
+Content-Type: application/json
+X-UserId: {{userId2}}
+
+{
+  "subscription": {
+    "endpoint": "https://fcm.googleapis.com/fcm/send/another-endpoint-99999",
+    "keys": {
+      "p256dh": "BCmti7ScwxxVAlB7WAyxoOXqynAvCesktn6gTTHdFZMUKzPPZKLzULZSbP0c1hv8WuYzMZvIqiSqQULCn40cVHs=",
+      "auth": "3ELB5Xi9BMIoGh1oTd0rKg=="
+    }
+  }
+}
+
+### Send notification with image - INTERNAL API
+POST {{internalApiUrl}}/users/{{userId}}/notifications
+Content-Type: application/json
+
+{
+  "notification": {
+    "title": "Product Update",
+    "body": "Check out our new features!",
+    "icon": "/icon-192x192.png",
+    "image": "https://example.com/feature-banner.jpg",
+    "data": {
+      "url": "/features/new"
+    }
+  }
+}
+
+### Invalid request examples for testing error handling
+
+### Missing X-UserId header in subscribe
+POST {{apiUrl}}/users/{{userId}}/subscriptions
+Content-Type: application/json
+
+{
+  "subscription": {
+    "endpoint": "https://example.com/invalid",
+    "keys": {
+      "p256dh": "invalid",
+      "auth": "invalid"
+    }
+  }
+}
+
+### Mismatched X-UserId header (should return 403 Forbidden)
+POST {{apiUrl}}/users/{{userId}}/subscriptions
+Content-Type: application/json
+X-UserId: different_user
+
+{
+  "subscription": {
+    "endpoint": "https://example.com/invalid",
+    "keys": {
+      "p256dh": "BNcRdreALRFXTkOOUHK1EtK2wtaz5Ry4YfYCA_0QTpQtUbVlUls0VJXg7A8u-Ts1XbjhazAkj7I99e8QcYP7DkM=",
+      "auth": "tBHItJI5svbpez7KI4CCXg=="
+    }
+  }
+}
+
+### Missing subscription in request body
+POST {{apiUrl}}/users/{{userId}}/subscriptions
+Content-Type: application/json
+X-UserId: {{userId}}
+
+{
+  "deviceInfo": {
+    "deviceType": "desktop"
+  }
+}
+
+### Missing notification payload in internal API
+POST {{internalApiUrl}}/users/{{userId}}/notifications
+Content-Type: application/json
+
+{}
