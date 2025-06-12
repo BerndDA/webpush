@@ -192,11 +192,24 @@ The service uses OpenAPI validation. The full API specification is available in 
 - `POST /internalapi/v1/users/:userId/notifications` - Send to specific user
 - `POST /internalapi/v1/notifications/broadcast` - Broadcast to all users
 
-### Authentication
+### Authorization
 
-The public API uses a simple header-based authentication:
-- All requests must include `X-UserId` header
-- The header value must match the `userId` in the URL path
+The public API implements a simple authorization mechanism:
+- All requests must include an `X-UserId` header
+- The service validates that the header value matches the `userId` in the URL path
+- This prevents users from accessing or modifying other users' subscriptions
+
+**Important:** This service does NOT handle authentication. It expects that:
+- Authentication is performed by upstream infrastructure (API Gateway, reverse proxy, auth service, etc.)
+- The infrastructure authenticates users and injects the verified `X-UserId` header
+- The service trusts this header and only performs authorization checks
+
+Example authorization flow:
+1. User authenticates with your infrastructure (e.g., JWT token validation)
+2. Infrastructure verifies the user identity and adds `X-UserId: user123` header
+3. Request reaches this service with the trusted header
+4. Service checks if `X-UserId` matches the requested resource's userId
+5. Access is granted or denied based on this check
 
 ## 🏛️ Architecture
 
